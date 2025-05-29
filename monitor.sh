@@ -6,8 +6,8 @@ check_health() {
   echo "🔍 Verificando saúde dos serviços..."
   echo ""
   
-  # Backend
-  if curl -sf http://localhost:5000/api/admin/cursos > /dev/null 2>&1; then
+  # Backend - ROTA CORRETA
+  if curl -sf http://localhost:5000/api/cursos > /dev/null 2>&1; then
     echo "✅ Backend (API): Online"
   else
     echo "❌ Backend (API): Offline"

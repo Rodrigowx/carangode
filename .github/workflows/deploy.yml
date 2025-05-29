@@ -61,8 +61,16 @@ jobs:
             sudo npm install -g pm2@latest
           fi
           
-          # Configurar firewall básico
+          # Instalar Nginx ANTES de configurar firewall
+          if ! command -v nginx &> /dev/null; then
+            echo "🌐 Instalando Nginx..."
+            sudo apt update -qq
+            sudo apt install -y nginx
+          fi
+          
+          # Configurar firewall DEPOIS do Nginx instalado
           if ! sudo ufw status | grep -q "Status: active"; then
+            echo "🔒 Configurando firewall..."
             sudo ufw --force enable
             sudo ufw allow ssh
             sudo ufw allow 'Nginx Full'
@@ -120,7 +128,7 @@ jobs:
           
           # Instalar Certbot e configurar SSL
           if ! command -v certbot &> /dev/null; then
-            sudo apt update -qq
+            echo "🔒 Instalando Certbot..."
             sudo apt install -y certbot python3-certbot-nginx
           fi
           
@@ -149,7 +157,7 @@ jobs:
           echo ""
           echo "🔍 Verificações de saúde..."
           
-          # Teste simplificado dos serviços
+          # Teste das rotas CORRETAS
           if curl -sf http://localhost:5000/api/cursos > /dev/null; then
             echo "✅ Backend (API) funcionando"
           else

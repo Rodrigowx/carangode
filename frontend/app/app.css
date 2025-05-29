@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+html,
+body {
+  @apply bg-white dark:bg-gray-950;
+
+  @media (prefers-color-scheme: dark) {
+    color-scheme: dark;
+  }
+}
+
+@layer utilities {
+  .bg-praia {
+    background-color: #fdf6e3;
+  }
+  .bg-praia-azul {
+    background-color: #e0f7fa;
+  }
+  .bg-praia-amarelo {
+    background-color: #ffe082;
+  }
+  .text-praia-azul {
+    color: #1e3a5c;
+  }
+  .bg-praia-escuro {
+    background-color: #1e293b;
+  }
+  .text-praia-claro {
+    color: #f1f5f9;
+  }
+}

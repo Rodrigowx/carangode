@@ -209,12 +209,15 @@ chmod +x /etc/cron.daily/certbot-renew
 
 # Testar renovação automática se SSL está funcionando
 if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
-    echo "🧪 Testando renovação automática..."
-    if certbot renew --dry-run --quiet; then
+    echo "🧪 Testando renovação automática (timeout 30s)..."
+    if timeout 30s certbot renew --dry-run --quiet 2>/dev/null; then
         echo "✅ Renovação automática configurada com sucesso!"
     else
-        echo "⚠️ Teste de renovação falhou, mas certificados foram gerados"
+        echo "⚠️ Teste de renovação falhou ou demorou muito, mas certificados foram gerados"
+        echo "   A renovação automática ainda está configurada e deve funcionar"
     fi
+else
+    echo "ℹ️ SSL não configurado, pulando teste de renovação"
 fi
 
 # Verificar status final

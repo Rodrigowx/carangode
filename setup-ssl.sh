@@ -9,12 +9,6 @@ echo "🔒 Configuração Automática SSL - Carangode"
 echo "=========================================="
 echo ""
 
-# Verificar se está rodando como root ou com sudo
-if [[ $EUID -eq 0 ]]; then
-   echo "❌ Não execute como root. Use: ./setup-ssl.sh"
-   exit 1
-fi
-
 # Pedir domínio se não fornecido como parâmetro
 DOMAIN=$1
 if [ -z "$DOMAIN" ]; then
@@ -35,37 +29,37 @@ echo ""
 # Verificar se nginx está instalado
 if ! command -v nginx &> /dev/null; then
     echo "❌ Nginx não encontrado. Instalando..."
-    sudo apt update
-    sudo apt install -y nginx
+    apt update
+    apt install -y nginx
 fi
 
 # Verificar se certbot está instalado
 if ! command -v certbot &> /dev/null; then
     echo "🔧 Instalando Certbot para Let's Encrypt..."
-    sudo apt update
-    sudo apt install -y certbot python3-certbot-nginx
+    apt update
+    apt install -y certbot python3-certbot-nginx
 fi
 
 # Backup da configuração atual
 NGINX_CONFIG="/etc/nginx/sites-available/carangode"
 if [ -f "$NGINX_CONFIG" ]; then
     echo "💾 Fazendo backup da configuração nginx..."
-    sudo cp "$NGINX_CONFIG" "$NGINX_CONFIG.backup.$(date +%Y%m%d_%H%M%S)"
+    cp "$NGINX_CONFIG" "$NGINX_CONFIG.backup.$(date +%Y%m%d_%H%M%S)"
 fi
 
 # Copiar nginx.conf para sites-available se não existir
 if [ ! -f "$NGINX_CONFIG" ]; then
     echo "📋 Copiando configuração nginx..."
-    sudo cp nginx.conf "$NGINX_CONFIG"
+    cp nginx.conf "$NGINX_CONFIG"
 fi
 
 # Substituir DOMAIN_PLACEHOLDER pelo domínio real
 echo "🔄 Configurando domínio $DOMAIN no nginx..."
-sudo sed -i "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" "$NGINX_CONFIG"
+sed -i "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" "$NGINX_CONFIG"
 
 # Verificar se configuração está válida
 echo "✅ Validando configuração nginx..."
-if ! sudo nginx -t; then
+if ! nginx -t; then
     echo "❌ Configuração nginx inválida!"
     exit 1
 fi
@@ -73,22 +67,22 @@ fi
 # Ativar site (criar symlink)
 if [ ! -L "/etc/nginx/sites-enabled/carangode" ]; then
     echo "🔗 Ativando site..."
-    sudo ln -sf "$NGINX_CONFIG" /etc/nginx/sites-enabled/carangode
+    ln -sf "$NGINX_CONFIG" /etc/nginx/sites-enabled/carangode
 fi
 
 # Remover configuração padrão se existir
 if [ -L "/etc/nginx/sites-enabled/default" ]; then
     echo "🗑️ Removendo configuração padrão..."
-    sudo rm -f /etc/nginx/sites-enabled/default
+    rm -f /etc/nginx/sites-enabled/default
 fi
 
 # Configurar firewall
 echo "🔒 Configurando firewall..."
-sudo ufw allow 'Nginx Full' >/dev/null 2>&1 || true
+ufw allow 'Nginx Full' >/dev/null 2>&1 || true
 
 # Recarregar nginx
 echo "🔄 Recarregando nginx..."
-sudo systemctl reload nginx
+systemctl reload nginx
 
 # Verificar se o domínio resolve para este servidor
 echo "🌐 Verificando DNS..."
@@ -101,11 +95,17 @@ if [ "$SERVER_IP" != "$DOMAIN_IP" ]; then
     echo "   IP do domínio:  $DOMAIN_IP"
     echo "   Configure o A record no seu provedor DNS"
     echo ""
-    echo "❓ Continuar mesmo assim? (y/N)"
-    read -r CONTINUE
-    if [[ ! "$CONTINUE" =~ ^[Yy]$ ]]; then
-        echo "Configure o DNS primeiro e execute novamente"
-        exit 1
+    
+    # Em ambiente automatizado (como GitHub Actions), continue sem perguntar
+    if [ -t 0 ]; then
+        echo "❓ Continuar mesmo assim? (y/N)"
+        read -r CONTINUE
+        if [[ ! "$CONTINUE" =~ ^[Yy]$ ]]; then
+            echo "Configure o DNS primeiro e execute novamente"
+            exit 1
+        fi
+    else
+        echo "⚠️ Continuando automaticamente (ambiente não interativo)"
     fi
 fi
 
@@ -116,7 +116,7 @@ echo "   www.$DOMAIN"
 echo ""
 
 # Certbot automático (não interativo)
-if sudo certbot --nginx \
+if certbot --nginx \
     --domains "$DOMAIN,www.$DOMAIN" \
     --email "admin@$DOMAIN" \
     --agree-tos \
@@ -138,7 +138,7 @@ fi
 echo "🔄 Configurando renovação automática..."
 
 # Criar script de renovação
-sudo tee /etc/cron.daily/certbot-renew > /dev/null << 'EOF'
+tee /etc/cron.daily/certbot-renew > /dev/null << 'EOF'
 #!/bin/bash
 # Renovação automática de certificados SSL
 
@@ -162,11 +162,11 @@ fi
 EOF
 
 # Dar permissão de execução
-sudo chmod +x /etc/cron.daily/certbot-renew
+chmod +x /etc/cron.daily/certbot-renew
 
 # Testar renovação automática
 echo "🧪 Testando renovação automática..."
-if sudo certbot renew --dry-run --quiet; then
+if certbot renew --dry-run --quiet; then
     echo "✅ Renovação automática configurada com sucesso!"
 else
     echo "⚠️ Teste de renovação falhou, mas certificados foram gerados"

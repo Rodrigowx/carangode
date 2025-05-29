@@ -111,7 +111,7 @@ jobs:
           # Usar o script automático de SSL
           if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
             echo "🔒 Executando configuração SSL automática..."
-            ./setup-ssl.sh "$DOMAIN"
+            sudo ./setup-ssl.sh "$DOMAIN"
           else
             echo "✅ SSL já configurado, aplicando configuração nginx..."
             # Apenas configurar nginx se SSL já existe

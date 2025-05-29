@@ -89,9 +89,41 @@ ln -sf "$NGINX_CONFIG" "$NGINX_ENABLED"
 echo "🔒 Configurando firewall..."
 ufw allow 'Nginx Full' >/dev/null 2>&1 || true
 
-# Recarregar nginx
-echo "🔄 Recarregando nginx..."
-systemctl reload nginx
+# Verificar e iniciar/recarregar nginx
+echo "🔄 Configurando serviço nginx..."
+
+# Verificar se nginx está ativo
+if systemctl is-active --quiet nginx; then
+    echo "✅ Nginx já está rodando, recarregando..."
+    if ! systemctl reload nginx; then
+        echo "⚠️ Falha ao recarregar, tentando restart..."
+        systemctl restart nginx
+    fi
+else
+    echo "🚀 Nginx não está rodando, iniciando..."
+    if ! systemctl start nginx; then
+        echo "❌ Falha ao iniciar nginx!"
+        echo "🔍 Status do serviço:"
+        systemctl status nginx --no-pager -l || true
+        echo ""
+        echo "🔍 Logs do nginx:"
+        journalctl -u nginx --no-pager -l --since "5 minutes ago" || true
+        exit 1
+    fi
+fi
+
+# Habilitar nginx para iniciar com o sistema
+systemctl enable nginx >/dev/null 2>&1 || true
+
+# Verificar se nginx está funcionando agora
+if ! systemctl is-active --quiet nginx; then
+    echo "❌ Nginx ainda não está rodando após tentativas!"
+    echo "🔍 Status final:"
+    systemctl status nginx --no-pager -l || true
+    exit 1
+fi
+
+echo "✅ Nginx rodando corretamente"
 
 # Verificar se o domínio resolve para este servidor
 echo "🌐 Verificando DNS..."

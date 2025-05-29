@@ -40,34 +40,22 @@ if ! command -v certbot &> /dev/null; then
     apt install -y certbot python3-certbot-nginx
 fi
 
-# Backup da configuração atual
+# Limpar configurações problemáticas primeiro
+echo "🧹 Limpando configurações nginx problemáticas..."
 NGINX_CONFIG="/etc/nginx/sites-available/carangode"
+NGINX_ENABLED="/etc/nginx/sites-enabled/carangode"
+
+# Remover links e arquivos problemáticos
+if [ -L "$NGINX_ENABLED" ]; then
+    echo "🗑️ Removendo link problemático..."
+    rm -f "$NGINX_ENABLED"
+fi
+
 if [ -f "$NGINX_CONFIG" ]; then
-    echo "💾 Fazendo backup da configuração nginx..."
+    echo "💾 Fazendo backup da configuração anterior..."
     cp "$NGINX_CONFIG" "$NGINX_CONFIG.backup.$(date +%Y%m%d_%H%M%S)"
-fi
-
-# Copiar nginx.conf para sites-available se não existir
-if [ ! -f "$NGINX_CONFIG" ]; then
-    echo "📋 Copiando configuração nginx..."
-    cp nginx.conf "$NGINX_CONFIG"
-fi
-
-# Substituir DOMAIN_PLACEHOLDER pelo domínio real
-echo "🔄 Configurando domínio $DOMAIN no nginx..."
-sed -i "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" "$NGINX_CONFIG"
-
-# Verificar se configuração está válida
-echo "✅ Validando configuração nginx..."
-if ! nginx -t; then
-    echo "❌ Configuração nginx inválida!"
-    exit 1
-fi
-
-# Ativar site (criar symlink)
-if [ ! -L "/etc/nginx/sites-enabled/carangode" ]; then
-    echo "🔗 Ativando site..."
-    ln -sf "$NGINX_CONFIG" /etc/nginx/sites-enabled/carangode
+    echo "🗑️ Removendo configuração problemática..."
+    rm -f "$NGINX_CONFIG"
 fi
 
 # Remover configuração padrão se existir
@@ -75,6 +63,27 @@ if [ -L "/etc/nginx/sites-enabled/default" ]; then
     echo "🗑️ Removendo configuração padrão..."
     rm -f /etc/nginx/sites-enabled/default
 fi
+
+# Copiar nossa configuração corrigida
+echo "📋 Copiando configuração nginx corrigida..."
+cp nginx.conf "$NGINX_CONFIG"
+
+# Substituir DOMAIN_PLACEHOLDER pelo domínio real
+echo "🔄 Configurando domínio $DOMAIN no nginx..."
+sed -i "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" "$NGINX_CONFIG"
+
+# Verificar se configuração está válida AGORA
+echo "✅ Validando configuração nginx..."
+if ! nginx -t; then
+    echo "❌ Configuração nginx inválida!"
+    echo "🔍 Conteúdo do arquivo problemático:"
+    cat "$NGINX_CONFIG"
+    exit 1
+fi
+
+# Ativar site (criar symlink)
+echo "🔗 Ativando site..."
+ln -sf "$NGINX_CONFIG" "$NGINX_ENABLED"
 
 # Configurar firewall
 echo "🔒 Configurando firewall..."

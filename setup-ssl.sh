@@ -64,66 +64,52 @@ if [ -L "/etc/nginx/sites-enabled/default" ]; then
     rm -f /etc/nginx/sites-enabled/default
 fi
 
-# Copiar nossa configuração corrigida
-echo "📋 Copiando configuração nginx corrigida..."
+# ETAPA 1: Configurar nginx apenas com HTTP primeiro
+echo "📋 Configurando nginx temporariamente apenas com HTTP..."
 cp nginx.conf "$NGINX_CONFIG"
 
-# Substituir DOMAIN_PLACEHOLDER pelo domínio real
-echo "🔄 Configurando domínio $DOMAIN no nginx..."
+# Substituir domínio
 sed -i "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" "$NGINX_CONFIG"
 
-# Verificar se configuração está válida AGORA
-echo "✅ Validando configuração nginx..."
+# Criar versão HTTP-only temporária
+sed -e '/listen 443 ssl/d' \
+    -e '/ssl_certificate/d' \
+    -e '/include .*letsencrypt/d' \
+    -e '/ssl_dhparam/d' \
+    -e 's/listen 80;/listen 80 default_server;/' \
+    -e '/return 301 https/d' \
+    "$NGINX_CONFIG" > /tmp/nginx-http-temp.conf
+
+cp /tmp/nginx-http-temp.conf "$NGINX_CONFIG"
+
+# Verificar configuração HTTP
+echo "✅ Validando configuração nginx (HTTP)..."
 if ! nginx -t; then
-    echo "❌ Configuração nginx inválida!"
-    echo "🔍 Conteúdo do arquivo problemático:"
+    echo "❌ Configuração nginx HTTP inválida!"
     cat "$NGINX_CONFIG"
     exit 1
 fi
 
-# Ativar site (criar symlink)
-echo "🔗 Ativando site..."
+# Ativar site HTTP temporário
+echo "🔗 Ativando site HTTP temporário..."
 ln -sf "$NGINX_CONFIG" "$NGINX_ENABLED"
 
 # Configurar firewall
 echo "🔒 Configurando firewall..."
 ufw allow 'Nginx Full' >/dev/null 2>&1 || true
 
-# Verificar e iniciar/recarregar nginx
-echo "🔄 Configurando serviço nginx..."
+# Reiniciar nginx com configuração HTTP
+echo "🔄 Reiniciando nginx com HTTP..."
+systemctl restart nginx
 
-# Verificar se nginx está ativo
-if systemctl is-active --quiet nginx; then
-    echo "✅ Nginx já está rodando, recarregando..."
-    if ! systemctl reload nginx; then
-        echo "⚠️ Falha ao recarregar, tentando restart..."
-        systemctl restart nginx
-    fi
-else
-    echo "🚀 Nginx não está rodando, iniciando..."
-    if ! systemctl start nginx; then
-        echo "❌ Falha ao iniciar nginx!"
-        echo "🔍 Status do serviço:"
-        systemctl status nginx --no-pager -l || true
-        echo ""
-        echo "🔍 Logs do nginx:"
-        journalctl -u nginx --no-pager -l --since "5 minutes ago" || true
-        exit 1
-    fi
-fi
-
-# Habilitar nginx para iniciar com o sistema
-systemctl enable nginx >/dev/null 2>&1 || true
-
-# Verificar se nginx está funcionando agora
+# Verificar se nginx está funcionando
 if ! systemctl is-active --quiet nginx; then
-    echo "❌ Nginx ainda não está rodando após tentativas!"
-    echo "🔍 Status final:"
+    echo "❌ Nginx não está rodando!"
     systemctl status nginx --no-pager -l || true
     exit 1
 fi
 
-echo "✅ Nginx rodando corretamente"
+echo "✅ Nginx HTTP funcionando"
 
 # Verificar se o domínio resolve para este servidor
 echo "🌐 Verificando DNS..."
@@ -150,7 +136,7 @@ if [ "$SERVER_IP" != "$DOMAIN_IP" ]; then
     fi
 fi
 
-# Gerar certificados SSL automaticamente
+# ETAPA 2: Gerar certificados SSL
 echo "🔐 Gerando certificados SSL..."
 echo "   Domínio: $DOMAIN"
 echo "   www.$DOMAIN"
@@ -166,13 +152,29 @@ if certbot --nginx \
     --non-interactive; then
     
     echo "✅ Certificados SSL gerados com sucesso!"
+    
+    # ETAPA 3: Aplicar configuração completa com SSL
+    echo "🔄 Aplicando configuração completa com SSL..."
+    
+    # Restaurar configuração original com SSL
+    cp nginx.conf "$NGINX_CONFIG"
+    sed -i "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" "$NGINX_CONFIG"
+    
+    # Testar configuração SSL
+    if nginx -t; then
+        systemctl reload nginx
+        echo "✅ Configuração SSL aplicada com sucesso!"
+    else
+        echo "⚠️ Configuração SSL falhou, mantendo HTTP"
+    fi
+    
 else
     echo "❌ Falha ao gerar certificados SSL"
+    echo "   Site funcionando em HTTP: http://$DOMAIN"
     echo "   Verifique se:"
     echo "   1. DNS está configurado corretamente"
     echo "   2. Firewall permite conexões HTTP/HTTPS"
-    echo "   3. Nginx está rodando"
-    exit 1
+    echo "   3. Domínio está acessível"
 fi
 
 # Configurar renovação automática
@@ -205,43 +207,55 @@ EOF
 # Dar permissão de execução
 chmod +x /etc/cron.daily/certbot-renew
 
-# Testar renovação automática
-echo "🧪 Testando renovação automática..."
-if certbot renew --dry-run --quiet; then
-    echo "✅ Renovação automática configurada com sucesso!"
-else
-    echo "⚠️ Teste de renovação falhou, mas certificados foram gerados"
+# Testar renovação automática se SSL está funcionando
+if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+    echo "🧪 Testando renovação automática..."
+    if certbot renew --dry-run --quiet; then
+        echo "✅ Renovação automática configurada com sucesso!"
+    else
+        echo "⚠️ Teste de renovação falhou, mas certificados foram gerados"
+    fi
 fi
 
 # Verificar status final
 echo ""
-echo "🎉 Configuração SSL Concluída!"
-echo "================================"
+echo "🎉 Configuração Concluída!"
+echo "========================="
 echo ""
 echo "✅ Domínio configurado: $DOMAIN"
-echo "✅ Certificados SSL gerados"
-echo "✅ Renovação automática ativada"
+
+if [ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+    echo "✅ Certificados SSL gerados"
+    echo "✅ Renovação automática ativada"
+    echo "✅ HTTPS funcionando"
+    PROTOCOL="https"
+else
+    echo "⚠️ SSL não configurado - usando HTTP"
+    PROTOCOL="http"
+fi
+
 echo "✅ Nginx configurado e rodando"
 echo ""
 
 # Teste final
-echo "🔗 Testando HTTPS..."
-if curl -sSf "https://$DOMAIN/health" >/dev/null 2>&1; then
-    echo "✅ HTTPS funcionando: https://$DOMAIN"
-elif curl -sSf "https://$DOMAIN" >/dev/null 2>&1; then
-    echo "✅ HTTPS funcionando: https://$DOMAIN"
+echo "🔗 Testando conectividade..."
+if curl -sSf "$PROTOCOL://$DOMAIN/health" >/dev/null 2>&1; then
+    echo "✅ Site funcionando: $PROTOCOL://$DOMAIN"
+elif curl -sSf "$PROTOCOL://$DOMAIN" >/dev/null 2>&1; then
+    echo "✅ Site funcionando: $PROTOCOL://$DOMAIN"
 else
-    echo "⚠️ HTTPS pode não estar funcionando ainda"
-    echo "   Aguarde alguns minutos e teste: https://$DOMAIN"
+    echo "⚠️ Site pode não estar funcionando ainda"
+    echo "   Teste: $PROTOCOL://$DOMAIN"
 fi
 
 echo ""
-echo "📋 Informações importantes:"
-echo "• Certificados renovam automaticamente a cada 60 dias"
-echo "• Logs da renovação: /var/log/certbot-renew.log"  
-echo "• Para forçar renovação: sudo certbot renew --force-renewal"
-echo "• Para verificar status: sudo certbot certificates"
-echo ""
+if [ "$PROTOCOL" = "https" ]; then
+    echo "📋 Informações importantes:"
+    echo "• Certificados renovam automaticamente a cada 60 dias"
+    echo "• Logs da renovação: /var/log/certbot-renew.log"  
+    echo "• Para forçar renovação: certbot renew --force-renewal"
+    echo "• Para verificar status: certbot certificates"
+fi
 
-echo "🚀 Agora inicie suas aplicações:"
-echo "./monitor.sh restart" 
+echo ""
+echo "🚀 Site online em: $PROTOCOL://$DOMAIN" 

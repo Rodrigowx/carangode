@@ -49,10 +49,10 @@ jobs:
           # Configurar domínio no nginx
           sed -i "s/DOMAIN_PLACEHOLDER/$DOMAIN/g" nginx.conf
           
-          # Instalar Node.js 18 LTS (mais leve que 22)
-          if ! node --version | grep -q "v18"; then
-            echo "📦 Instalando Node.js 18 LTS..."
-            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+          # Instalar Node.js 22 LTS (melhor performance + compatibilidade com React Router 7)
+          if ! node --version | grep -q "v22"; then
+            echo "📦 Instalando Node.js 22 LTS..."
+            curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
             sudo apt-get install -y nodejs
           fi
           
@@ -106,6 +106,7 @@ jobs:
           # Criar .env do frontend
           cat > .env << EOF
           VITE_API_URL=https://$DOMAIN/api
+          NODE_ENV=production
           EOF
           
           # Build e start frontend

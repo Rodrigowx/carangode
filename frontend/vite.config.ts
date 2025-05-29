@@ -22,15 +22,14 @@ export default defineConfig({
     sourcemap: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router', 'react-router-dom'],
-          axios: ['axios']
-        }
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]'
       }
     }
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router', 'react-router-dom', 'axios']
+    include: ['react', 'react-dom', 'axios']
   },
   preview: {
     port: 3000,

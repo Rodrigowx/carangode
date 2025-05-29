@@ -31,16 +31,18 @@ Configure estes secrets no GitHub em: **Settings > Secrets and variables > Actio
 
 ## ⚡ Otimizações Implementadas
 
-### 📦 **Node.js 18 LTS** (em vez de 22)
-- **50% mais leve** que Node 22
-- **Compatível** com todas as dependências
-- **Mais estável** para produção
+### 📦 **Node.js 22 LTS** (melhor performance + compatibilidade)
+- **Melhor performance** que versões anteriores
+- **Totalmente compatível** com React Router 7
+- **V8 engine moderna** com recursos ES2024
+- **LTS até 2027** - suporte de longo prazo
 
-### 🚀 **Deploy Simplificado**
+### 🚀 **Deploy Simplificado** (sem Docker)
+- **Node.js direto** na VPS (sem containers)
+- **PM2** para gerenciamento de processos
 - **Validação prévia** de secrets
 - **Fallback HTTP/HTTPS** automático  
 - **Logs melhorados** com emojis
-- **Testes corretos** das rotas
 
 ### 🔧 **Scripts Otimizados**
 - **Rota correta**: `/api/cursos` (não `/api/admin/cursos`)
@@ -49,18 +51,18 @@ Configure estes secrets no GitHub em: **Settings > Secrets and variables > Actio
 
 ---
 
-## 🚀 Como funciona (Otimizado)
+## 🚀 Como funciona
 
 1. **Validação** → Verifica secrets obrigatórios primeiro
-2. **Node 18 LTS** → Instala versão otimizada  
-3. **Deploy rápido** → Sem verificações desnecessárias
+2. **Node 22 LTS** → Instala versão mais moderna para React Router 7
+3. **Deploy direto** → Sem Docker, usando PM2 + Nginx
 4. **SSL automático** → Com fallback HTTP se falhar
 5. **Monitoramento** → Health checks funcionais
 
 ## ✅ Primeira configuração
 
-O deploy otimizado vai:
-- ✅ Instalar **Node.js 18 LTS** (mais leve)
+O deploy vai:
+- ✅ Instalar **Node.js 22 LTS** (melhor performance)
 - ✅ Configurar **PM2** com limites de memória
 - ✅ Configurar **SSL automático** com fallback
 - ✅ Validar **saúde dos serviços** corretamente
@@ -78,21 +80,21 @@ O deploy otimizado vai:
 
 - **Frontend**: `https://meusite.com`
 - **API**: `https://meusite.com/api/cursos`
-- **Health**: `https://meusite.com/health`
 
 ## 🔧 Recursos Otimizados
 
 ### ⚡ **Performance**
-✅ **Node 18 Alpine** (50% menor que Node 22)  
-✅ **Memory limits** (Backend: 150MB, Frontend: 100MB)  
-✅ **Silent installs** (sem logs desnecessários)  
-✅ **Cache otimizado** no Docker  
+✅ **Node 22 LTS** (V8 engine moderna)  
+✅ **Memory limits** (Backend: 150MB, Frontend: 100M)  
+✅ **PM2 cluster mode** disponível  
+✅ **Nginx otimizado** com cache  
 
 ### 🛡️ **Segurança**
 ✅ **Validação prévia** de secrets  
-✅ **Fallback seguro** HTTP→HTTPS  
+✅ **SSL automático** com Let's Encrypt  
 ✅ **Health checks** funcionais  
 ✅ **Rate limiting** no Nginx  
+✅ **Headers de segurança** configurados  
 
 ### 🔧 **Confiabilidade**
 ✅ **Testes corretos** das rotas  
@@ -102,65 +104,54 @@ O deploy otimizado vai:
 
 ---
 
-## 🎯 **Resultado Final**
+## 🎯 **Arquitetura Final**
 
-**Antes**: Deploy complexo, Node 22 pesado, rotas incorretas  
-**Depois**: Deploy em ~2min, Node 18 leve, tudo funcionando  
+```
+Internet → Nginx (80/443) → Backend (5000) + Frontend (3000)
+                ↓
+           Let's Encrypt SSL
+                ↓
+            PM2 Process Manager
+                ↓
+           Node.js 22 + SQLite
+```
 
-**Deploy time**: 60% mais rápido  
-**Memory usage**: 40% menor  
-**Success rate**: 99% de sucessos  
+**Tecnologias**: Node 22 LTS, PM2, Nginx, Let's Encrypt, Ubuntu 24.04  
+**Sem Docker**: Deploy direto mais simples e eficiente  
 
-🎉 **Agora seu app está otimizado para produção!**
+🎉 **Sistema otimizado para produção sem complexidade desnecessária!**
 
 ## 🔒 Configuração HTTPS
 
 ### 📋 Antes do deploy:
 
 1. **Configure seu domínio** para apontar para o IP da VPS
-2. **Atualize o nginx.conf** substituindo `seu-dominio.com` pelo seu domínio real
-3. **Configure SSL** na VPS (veja instruções abaixo)
+2. **Atualize o nginx.conf** substituindo `DOMAIN_PLACEHOLDER` (feito automaticamente)
 
-### 🔑 Configurar SSL com Let's Encrypt:
+### 🔑 SSL Automático:
 
-Conecte na VPS e execute:
-
-```bash
-# Instalar Certbot
-sudo apt update
-sudo apt install certbot python3-certbot-nginx -y
-
-# Obter certificado SSL (substitua pelo seu domínio)
-sudo certbot --nginx -d meusite.com -d www.meusite.com
-
-# Verificar renovação automática
-sudo certbot renew --dry-run
-```
-
-### 📝 Atualizar nginx.conf:
-
-Antes do deploy, substitua no arquivo `nginx.conf`:
-- `seu-dominio.com` → `meusite.com` (seu domínio real)
-- Paths dos certificados serão configurados automaticamente pelo Certbot
+O deploy configura SSL automaticamente via Let's Encrypt. Se falhar, usa HTTP temporariamente.
 
 ---
 
-## 🚀 Como funciona
+## 🚀 Como funciona o Deploy
 
 1. **Push na main** → GitHub Actions inicia
 2. **Checkout do código** → Baixa o repositório atual
 3. **Deploy na VPS** → Conecta via SSH e configura tudo
-4. **Cria .env automaticamente** → Usando os secrets
-5. **Instala dependências** → Backend e frontend
-6. **Builda e inicia** → PM2 gerencia os processos
-7. **Configura Nginx** → Proxy reverso com HTTPS
+4. **Instala Node 22** → Versão melhor para React Router 7
+5. **Cria .env automaticamente** → Usando os secrets
+6. **Instala dependências** → Backend e frontend
+7. **Builda e inicia** → PM2 gerencia os processos
+8. **Configura Nginx** → Proxy reverso com HTTPS automático
 
 ## ✅ Primeira configuração
 
 Na primeira vez, o deploy vai:
-- Instalar Node.js 22
+- Instalar Node.js 22 LTS
 - Instalar PM2
-- Configurar Nginx com HTTPS
+- Configurar Nginx com HTTPS automático
+- Configurar firewall UFW
 - Criar todos os arquivos necessários
 
 ## 📊 Monitoramento
@@ -171,21 +162,20 @@ pm2 status          # Status dos serviços
 pm2 logs            # Ver logs
 pm2 restart all     # Reiniciar tudo
 sudo nginx -t       # Testar configuração Nginx
+./troubleshoot.sh   # Diagnóstico completo
 ```
 
 ## 🌐 Acessar aplicação
 
 - **Frontend**: `https://meusite.com`
-- **API**: `https://meusite.com/api/admin/cursos`
+- **API**: `https://meusite.com/api/cursos`
 - **HTTP redirects** automaticamente para HTTPS
 
-## 🔧 Recursos da configuração HTTPS:
+## 🔧 Vantagens da arquitetura sem Docker:
 
-✅ **SSL/TLS moderno** (TLS 1.2 e 1.3)  
-✅ **HTTP → HTTPS redirect** automático  
-✅ **HSTS** (HTTP Strict Transport Security)  
-✅ **Headers de segurança** aprimorados  
-✅ **CORS específico** para seu domínio  
-✅ **Cache otimizado** para arquivos estáticos  
-✅ **Compressão Gzip** melhorada  
-✅ **Logs separados** para debug 
+✅ **Mais simples** → Menos camadas de abstração  
+✅ **Deploy mais rápido** → Sem build de containers  
+✅ **Menos recursos** → Menor uso de memória  
+✅ **Debug mais fácil** → Logs diretos do sistema  
+✅ **PM2 nativo** → Melhor performance que containers  
+✅ **SSL nativo** → Let's Encrypt integrado

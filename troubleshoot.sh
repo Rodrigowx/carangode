@@ -16,8 +16,14 @@ echo ""
 # Verificar Node.js
 echo "📦 Node.js:"
 if command -v node &> /dev/null; then
-  echo "✅ Node version: $(node --version)"
+  NODE_VERSION=$(node --version)
+  echo "✅ Node version: $NODE_VERSION"
   echo "✅ NPM version: $(npm --version)"
+  
+  # Verificar se é Node 22+ (recomendado para React Router 7)
+  if [[ $NODE_VERSION =~ v([0-9]+) ]] && [ "${BASH_REMATCH[1]}" -lt 22 ]; then
+    echo "⚠️ Node ${BASH_REMATCH[1]} detectado. Node 22+ recomendado para melhor performance"
+  fi
 else
   echo "❌ Node.js não está instalado"
 fi

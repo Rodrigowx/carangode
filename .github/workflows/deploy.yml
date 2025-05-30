@@ -22,6 +22,11 @@ on:
         description: 'Tag de versão (deixe vazio para auto-gerar)'
         required: false
         type: string
+      debug_ssh:
+        description: 'Debug SSH (apenas para troubleshooting)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   deploy:
@@ -32,6 +37,61 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Necessário para tags
+        
+    - name: Verificar secrets obrigatórios
+      run: |
+        echo "🔍 Verificando configuração de secrets..."
+        
+        # Lista de secrets obrigatórios
+        MISSING_SECRETS=""
+        
+        if [ -z "${{ secrets.VPS_HOST }}" ]; then
+          MISSING_SECRETS="$MISSING_SECRETS VPS_HOST"
+        fi
+        
+        if [ -z "${{ secrets.VPS_USERNAME }}" ]; then
+          MISSING_SECRETS="$MISSING_SECRETS VPS_USERNAME"
+        fi
+        
+        # Verificar se tem pelo menos uma forma de autenticação
+        if [ -z "${{ secrets.VPS_PASSWORD }}" ] && [ -z "${{ secrets.VPS_SSH_KEY }}" ]; then
+          MISSING_SECRETS="$MISSING_SECRETS VPS_PASSWORD_ou_VPS_SSH_KEY"
+        fi
+        
+        if [ -z "${{ secrets.DOMAIN_NAME }}" ]; then
+          MISSING_SECRETS="$MISSING_SECRETS DOMAIN_NAME"
+        fi
+        
+        if [ -z "${{ secrets.JWT_SECRET }}" ]; then
+          MISSING_SECRETS="$MISSING_SECRETS JWT_SECRET"
+        fi
+        
+        if [ -z "${{ secrets.ADMIN_USERNAME }}" ]; then
+          MISSING_SECRETS="$MISSING_SECRETS ADMIN_USERNAME"
+        fi
+        
+        if [ -z "${{ secrets.ADMIN_PASSWORD }}" ]; then
+          MISSING_SECRETS="$MISSING_SECRETS ADMIN_PASSWORD"
+        fi
+        
+        if [ -n "$MISSING_SECRETS" ]; then
+          echo "❌ ERRO: Secrets obrigatórios não configurados:"
+          for secret in $MISSING_SECRETS; do
+            echo "  - $secret"
+          done
+          echo ""
+          echo "📝 Configure estes secrets em: Settings → Secrets and variables → Actions"
+          exit 1
+        fi
+        
+        echo "✅ Todos os secrets obrigatórios estão configurados"
+        
+        # Debug info (sem expor valores)
+        echo "🔧 Informações de configuração:"
+        echo "  - Host: ${{ secrets.VPS_HOST }}"
+        echo "  - Usuário: ${{ secrets.VPS_USERNAME }}"
+        echo "  - Autenticação: $([ -n "${{ secrets.VPS_SSH_KEY }}" ] && echo "SSH Key" || echo "Password")"
+        echo "  - Domínio: ${{ secrets.DOMAIN_NAME }}"
         
     - name: Configurar variáveis de ambiente
       id: vars
@@ -50,6 +110,24 @@ jobs:
         echo "environment=$ENV" >> $GITHUB_OUTPUT
         
         echo "🚀 Deploy iniciado - Versão: $VERSION | Ambiente: $ENV"
+
+    - name: Testar conectividade SSH (se debug ativado)
+      if: github.event.inputs.debug_ssh == 'true'
+      uses: appleboy/ssh-action@v1.1.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        password: ${{ secrets.VPS_PASSWORD }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: 22
+        debug: true
+        script: |
+          echo "🔍 Teste de conectividade SSH..."
+          echo "Usuário: $(whoami)"
+          echo "Diretório: $(pwd)"
+          echo "Sistema: $(uname -a)"
+          echo "Data: $(date)"
+          echo "✅ SSH funcionando corretamente!"
       
     - name: Deploy para VPS
       uses: appleboy/ssh-action@v1.1.0
@@ -58,6 +136,9 @@ jobs:
         username: ${{ secrets.VPS_USERNAME }}
         password: ${{ secrets.VPS_PASSWORD }}
         key: ${{ secrets.VPS_SSH_KEY }}
+        port: 22
+        timeout: 300s
+        command_timeout: 60m
         script: |
           set -e  # Parar em qualquer erro
           
@@ -65,13 +146,6 @@ jobs:
           VERSION="${{ steps.vars.outputs.version }}"
           ENVIRONMENT="${{ steps.vars.outputs.environment }}"
           FORCE_SSL="${{ github.event.inputs.force_ssl_setup || 'false' }}"
-          
-          # Validar secrets obrigatórios logo no início
-          if [ -z "$DOMAIN" ] || [ -z "${{ secrets.JWT_SECRET }}" ] || [ -z "${{ secrets.ADMIN_USERNAME }}" ] || [ -z "${{ secrets.ADMIN_PASSWORD }}" ]; then
-            echo "❌ ERRO: Secrets obrigatórios não configurados!"
-            echo "Necessários: DOMAIN_NAME, JWT_SECRET, ADMIN_USERNAME, ADMIN_PASSWORD"
-            exit 1
-          fi
           
           echo "🚀 Iniciando deploy $VERSION para $DOMAIN (ambiente: $ENVIRONMENT)..."
           
@@ -314,4 +388,9 @@ jobs:
         else
           echo "❌ Deploy falhou!"
           echo "🔍 Verifique os logs acima para detalhes"
+          echo ""
+          echo "💡 Dicas para resolver problemas SSH:"
+          echo "  1. Verifique se VPS_HOST, VPS_USERNAME estão corretos"
+          echo "  2. Configure VPS_SSH_KEY (preferível) ou VPS_PASSWORD"
+          echo "  3. Execute com 'Debug SSH' = true para mais informações"
         fi 

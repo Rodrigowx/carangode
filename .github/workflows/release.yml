@@ -1,0 +1,170 @@
+name: Criar Release Manual
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versão do release (ex: v1.2.3)'
+        required: true
+        type: string
+      release_type:
+        description: 'Tipo do release'
+        required: true
+        default: 'minor'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+          - hotfix
+      prerelease:
+        description: 'É um pre-release?'
+        required: false
+        default: false
+        type: boolean
+      generate_changelog:
+        description: 'Gerar changelog automático?'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Necessário para histórico completo
+        
+    - name: Configurar Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+    - name: Validar versão
+      id: validate
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        
+        # Remover 'v' se presente e adicionar novamente para consistência
+        VERSION=$(echo "$VERSION" | sed 's/^v//')
+        VERSION="v$VERSION"
+        
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "version_clean=$(echo $VERSION | sed 's/^v//')" >> $GITHUB_OUTPUT
+        
+        # Verificar se a tag já existe
+        if git tag -l | grep -q "^$VERSION$"; then
+          echo "❌ Erro: Tag $VERSION já existe!"
+          exit 1
+        fi
+        
+        echo "✅ Versão $VERSION validada"
+        
+    - name: Gerar Changelog
+      id: changelog
+      if: github.event.inputs.generate_changelog == 'true'
+      run: |
+        # Pegar a última tag
+        LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        
+        if [ -z "$LAST_TAG" ]; then
+          echo "📝 Primeiro release - incluindo todo o histórico"
+          COMMITS=$(git log --oneline --pretty=format:"- %s (%h)" | head -20)
+        else
+          echo "📝 Gerando changelog desde $LAST_TAG"
+          COMMITS=$(git log --oneline --pretty=format:"- %s (%h)" $LAST_TAG..HEAD)
+        fi
+        
+        # Criar changelog
+        cat > changelog.md << EOF
+        ## 🚀 O que há de novo em ${{ steps.validate.outputs.version }}
+        
+        ### 📋 Commits incluídos:
+        $COMMITS
+        
+        ### 📊 Estatísticas:
+        - **Commits:** $(echo "$COMMITS" | wc -l)
+        - **Última tag:** ${LAST_TAG:-"Nenhuma"}
+        - **Tipo:** ${{ github.event.inputs.release_type }}
+        
+        ### 🔗 Links úteis:
+        - [Ver todas as alterações](https://github.com/${{ github.repository }}/compare/${LAST_TAG}...${{ steps.validate.outputs.version }})
+        - [Site ao vivo](https://${{ secrets.DOMAIN_NAME || 'seu-dominio.com' }})
+        EOF
+        
+        # Escapar para uso no GitHub
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        cat changelog.md >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+    - name: Criar tag
+      run: |
+        git tag -a ${{ steps.validate.outputs.version }} -m "Release ${{ steps.validate.outputs.version }}"
+        git push origin ${{ steps.validate.outputs.version }}
+        
+    - name: Criar Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.validate.outputs.version }}
+        release_name: 'Release ${{ steps.validate.outputs.version }}'
+        body: |
+          ${{ steps.changelog.outputs.changelog || format('🚀 **Release Manual - {0}**
+
+          **📅 Data:** {1}
+          **🔧 Commit:** {2}
+          **👤 Criado por:** @{3}
+          **📦 Tipo:** {4}
+
+          **🔗 Links:**
+          - 🌐 [Site ao vivo](https://{5})
+          - 📚 [Documentação](https://github.com/{6}#readme)
+
+          ---
+          *Release criado manualmente via GitHub Actions*', 
+          steps.validate.outputs.version,
+          github.event.repository.updated_at,
+          github.sha,
+          github.actor,
+          github.event.inputs.release_type,
+          secrets.DOMAIN_NAME,
+          github.repository) }}
+        draft: false
+        prerelease: ${{ github.event.inputs.prerelease }}
+        
+    - name: Comentar sucesso
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.repos.createCommitComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            commit_sha: context.sha,
+            body: `🎉 **Release ${{ steps.validate.outputs.version }} criado com sucesso!**
+            
+            **📦 Tipo:** ${{ github.event.inputs.release_type }}
+            **👤 Criado por:** @${{ github.actor }}
+            **🔗 Link:** [Ver Release](https://github.com/${{ github.repository }}/releases/tag/${{ steps.validate.outputs.version }})
+            
+            ${${{ github.event.inputs.prerelease }} ? '⚠️ **Pre-release** - não recomendado para produção' : '✅ **Release estável** - pronto para produção'}
+            
+            Para fazer deploy desta versão, execute o workflow de deploy manualmente.`
+          })
+          
+    - name: Resumo final
+      run: |
+        echo "🎉 Release ${{ steps.validate.outputs.version }} criado com sucesso!"
+        echo ""
+        echo "📋 Detalhes:"
+        echo "  - Versão: ${{ steps.validate.outputs.version }}"
+        echo "  - Tipo: ${{ github.event.inputs.release_type }}"
+        echo "  - Pre-release: ${{ github.event.inputs.prerelease }}"
+        echo "  - Changelog: ${{ github.event.inputs.generate_changelog }}"
+        echo ""
+        echo "🔗 Links:"
+        echo "  - Release: https://github.com/${{ github.repository }}/releases/tag/${{ steps.validate.outputs.version }}"
+        echo "  - Comparação: https://github.com/${{ github.repository }}/compare/$(git describe --tags --abbrev=0 ${{ steps.validate.outputs.version }}^)...${{ steps.validate.outputs.version }}" 

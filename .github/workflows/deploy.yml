@@ -3,6 +3,25 @@ name: Deploy para VPS
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Ambiente para deploy'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+      force_ssl_setup:
+        description: 'Forçar reconfiguração SSL'
+        required: false
+        default: false
+        type: boolean
+      version_tag:
+        description: 'Tag de versão (deixe vazio para auto-gerar)'
+        required: false
+        type: string
 
 jobs:
   deploy:
@@ -11,6 +30,26 @@ jobs:
     steps:
     - name: Checkout código
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Necessário para tags
+        
+    - name: Configurar variáveis de ambiente
+      id: vars
+      run: |
+        # Gerar versão baseada na data e commit
+        if [ -n "${{ github.event.inputs.version_tag }}" ]; then
+          VERSION="${{ github.event.inputs.version_tag }}"
+        else
+          VERSION="v$(date +'%Y.%m.%d')-$(echo ${{ github.sha }} | cut -c1-7)"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "timestamp=$(date +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_OUTPUT
+        
+        # Configurar ambiente
+        ENV="${{ github.event.inputs.environment || 'production' }}"
+        echo "environment=$ENV" >> $GITHUB_OUTPUT
+        
+        echo "🚀 Deploy iniciado - Versão: $VERSION | Ambiente: $ENV"
       
     - name: Deploy para VPS
       uses: appleboy/ssh-action@v1.1.0
@@ -23,6 +62,9 @@ jobs:
           set -e  # Parar em qualquer erro
           
           DOMAIN="${{ secrets.DOMAIN_NAME }}"
+          VERSION="${{ steps.vars.outputs.version }}"
+          ENVIRONMENT="${{ steps.vars.outputs.environment }}"
+          FORCE_SSL="${{ github.event.inputs.force_ssl_setup || 'false' }}"
           
           # Validar secrets obrigatórios logo no início
           if [ -z "$DOMAIN" ] || [ -z "${{ secrets.JWT_SECRET }}" ] || [ -z "${{ secrets.ADMIN_USERNAME }}" ] || [ -z "${{ secrets.ADMIN_PASSWORD }}" ]; then
@@ -31,7 +73,7 @@ jobs:
             exit 1
           fi
           
-          echo "🚀 Iniciando deploy para $DOMAIN..."
+          echo "🚀 Iniciando deploy $VERSION para $DOMAIN (ambiente: $ENVIRONMENT)..."
           
           # Configurar diretórios
           mkdir -p ~/carangode ~/logs
@@ -45,6 +87,12 @@ jobs:
           
           git fetch origin main
           git reset --hard origin/main
+          
+          # Criar arquivo de versão
+          echo "$VERSION" > VERSION
+          echo "Deploy realizado em: ${{ steps.vars.outputs.timestamp }}" >> VERSION
+          echo "Commit: ${{ github.sha }}" >> VERSION
+          echo "Ambiente: $ENVIRONMENT" >> VERSION
           
           # Dar permissões aos scripts
           chmod +x *.sh
@@ -74,8 +122,9 @@ jobs:
           ADMIN_USERNAME="${{ secrets.ADMIN_USERNAME }}"
           ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}"
           PORT=5000
-          NODE_ENV=production
+          NODE_ENV=$ENVIRONMENT
           FRONTEND_URL=https://$DOMAIN
+          VERSION=$VERSION
           EOF
           
           # Instalar dependências e configurar banco
@@ -94,7 +143,8 @@ jobs:
           # Criar .env do frontend
           cat > .env << EOF
           VITE_API_URL=https://$DOMAIN/api
-          NODE_ENV=production
+          NODE_ENV=$ENVIRONMENT
+          VITE_VERSION=$VERSION
           EOF
           
           # Build e start frontend
@@ -105,12 +155,12 @@ jobs:
           pm2 delete frontend 2>/dev/null || true
           pm2 start "npx serve -s build/client -l 3000" --name "frontend" --max-memory-restart 100M --cwd ~/carangode/frontend
           
-          echo "🌐 Configurando Nginx e SSL automaticamente..."
+          echo "🌐 Configurando Nginx e SSL..."
           cd ..
           
-          # Usar o script automático de SSL
-          if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
-            echo "🔒 Executando configuração SSL automática..."
+          # Configurar SSL baseado na flag force_ssl_setup
+          if [ "$FORCE_SSL" = "true" ] || [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+            echo "🔒 Executando configuração SSL..."
             if sudo ./setup-ssl.sh "$DOMAIN"; then
               echo "✅ SSL configurado com sucesso!"
             else
@@ -191,12 +241,77 @@ jobs:
           fi
           
           echo ""
-          echo "🎉 Deploy concluído com sucesso!"
+          echo "🎉 Deploy $VERSION concluído com sucesso!"
           echo "🌐 Site: $PROTOCOL://$DOMAIN"
           echo "🔧 API: $PROTOCOL://$DOMAIN/api/cursos"
+          echo "📦 Versão: $VERSION"
+          echo "🌍 Ambiente: $ENVIRONMENT"
           echo ""
           echo "📊 Status dos serviços:"
           pm2 status
           echo ""
           echo "🔒 Certificados SSL:"
-          sudo certbot certificates 2>/dev/null || echo "Certbot não configurado" 
+          sudo certbot certificates 2>/dev/null || echo "Certbot não configurado"
+
+    - name: Criar Release Automático
+      if: success() && github.event_name == 'push'  # Só para push automático
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.vars.outputs.version }}
+        release_name: 'Release ${{ steps.vars.outputs.version }}'
+        body: |
+          🚀 **Deploy Automático - ${{ steps.vars.outputs.version }}**
+          
+          **📅 Data:** ${{ steps.vars.outputs.timestamp }}
+          **🔧 Commit:** ${{ github.sha }}
+          **🌍 Ambiente:** ${{ steps.vars.outputs.environment }}
+          **👤 Autor:** ${{ github.actor }}
+          
+          **📋 Alterações incluídas:**
+          ${{ github.event.head_commit.message }}
+          
+          **🔗 Links:**
+          - 🌐 [Site ao vivo](https://${{ secrets.DOMAIN_NAME }})
+          - 🔧 [API](https://${{ secrets.DOMAIN_NAME }}/api/cursos)
+          
+          ---
+          *Release criado automaticamente pelo GitHub Actions*
+        draft: false
+        prerelease: false
+
+    - name: Comentar no commit (se manual)
+      if: success() && github.event_name == 'workflow_dispatch'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.repos.createCommitComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            commit_sha: context.sha,
+            body: `🚀 **Deploy Manual Realizado**
+            
+            **📦 Versão:** ${{ steps.vars.outputs.version }}
+            **🌍 Ambiente:** ${{ steps.vars.outputs.environment }}
+            **👤 Executado por:** @${{ github.actor }}
+            **📅 Data:** ${{ steps.vars.outputs.timestamp }}
+            
+            **🔗 Links:**
+            - 🌐 [Site ao vivo](https://${{ secrets.DOMAIN_NAME }})
+            - 🔧 [API](https://${{ secrets.DOMAIN_NAME }}/api/cursos)
+            
+            ✅ Deploy concluído com sucesso!`
+          })
+
+    - name: Notificar status
+      if: always()
+      run: |
+        if [ "${{ job.status }}" = "success" ]; then
+          echo "✅ Deploy realizado com sucesso!"
+          echo "🌐 Site: https://${{ secrets.DOMAIN_NAME }}"
+          echo "📦 Versão: ${{ steps.vars.outputs.version }}"
+        else
+          echo "❌ Deploy falhou!"
+          echo "🔍 Verifique os logs acima para detalhes"
+        fi 

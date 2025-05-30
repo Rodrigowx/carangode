@@ -1,8 +1,6 @@
 name: Deploy para VPS
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
     inputs:
       environment:
@@ -27,6 +25,16 @@ on:
         required: false
         default: false
         type: boolean
+      create_release:
+        description: 'Criar release após deploy?'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
 
 jobs:
   deploy:
@@ -109,7 +117,7 @@ jobs:
         ENV="${{ github.event.inputs.environment || 'production' }}"
         echo "environment=$ENV" >> $GITHUB_OUTPUT
         
-        echo "🚀 Deploy iniciado - Versão: $VERSION | Ambiente: $ENV"
+        echo "🚀 Deploy MANUAL iniciado - Versão: $VERSION | Ambiente: $ENV"
 
     - name: Testar conectividade SSH (se debug ativado)
       if: github.event.inputs.debug_ssh == 'true'
@@ -147,7 +155,7 @@ jobs:
           ENVIRONMENT="${{ steps.vars.outputs.environment }}"
           FORCE_SSL="${{ github.event.inputs.force_ssl_setup || 'false' }}"
           
-          echo "🚀 Iniciando deploy $VERSION para $DOMAIN (ambiente: $ENVIRONMENT)..."
+          echo "🚀 Iniciando deploy MANUAL $VERSION para $DOMAIN (ambiente: $ENVIRONMENT)..."
           
           # Configurar diretórios
           mkdir -p ~/carangode ~/logs
@@ -164,9 +172,10 @@ jobs:
           
           # Criar arquivo de versão
           echo "$VERSION" > VERSION
-          echo "Deploy realizado em: ${{ steps.vars.outputs.timestamp }}" >> VERSION
+          echo "Deploy MANUAL realizado em: ${{ steps.vars.outputs.timestamp }}" >> VERSION
           echo "Commit: ${{ github.sha }}" >> VERSION
           echo "Ambiente: $ENVIRONMENT" >> VERSION
+          echo "Executado por: ${{ github.actor }}" >> VERSION
           
           # Dar permissões aos scripts
           chmod +x *.sh
@@ -315,11 +324,12 @@ jobs:
           fi
           
           echo ""
-          echo "🎉 Deploy $VERSION concluído com sucesso!"
+          echo "🎉 Deploy MANUAL $VERSION concluído com sucesso!"
           echo "🌐 Site: $PROTOCOL://$DOMAIN"
           echo "🔧 API: $PROTOCOL://$DOMAIN/api/cursos"
           echo "📦 Versão: $VERSION"
           echo "🌍 Ambiente: $ENVIRONMENT"
+          echo "👤 Executado por: ${{ github.actor }}"
           echo ""
           echo "📊 Status dos serviços:"
           pm2 status
@@ -327,70 +337,68 @@ jobs:
           echo "🔒 Certificados SSL:"
           sudo certbot certificates 2>/dev/null || echo "Certbot não configurado"
 
-    - name: Criar Release Automático
-      if: success() && github.event_name == 'push'  # Só para push automático
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Criar Release (se solicitado)
+      if: success() && github.event.inputs.create_release == 'true'
+      uses: ncipollo/release-action@v1
       with:
-        tag_name: ${{ steps.vars.outputs.version }}
-        release_name: 'Release ${{ steps.vars.outputs.version }}'
+        tag: ${{ steps.vars.outputs.version }}
+        name: 'Release ${{ steps.vars.outputs.version }}'
         body: |
-          🚀 **Deploy Automático - ${{ steps.vars.outputs.version }}**
+          🚀 **Deploy Manual - ${{ steps.vars.outputs.version }}**
           
           **📅 Data:** ${{ steps.vars.outputs.timestamp }}
           **🔧 Commit:** ${{ github.sha }}
           **🌍 Ambiente:** ${{ steps.vars.outputs.environment }}
-          **👤 Autor:** ${{ github.actor }}
+          **👤 Executado por:** @${{ github.actor }}
           
-          **📋 Alterações incluídas:**
-          ${{ github.event.head_commit.message }}
+          **🎯 Deploy Manual:**
+          Este release foi criado através de deploy manual, permitindo controle total sobre quando fazer o deploy.
           
           **🔗 Links:**
           - 🌐 [Site ao vivo](https://${{ secrets.DOMAIN_NAME }})
           - 🔧 [API](https://${{ secrets.DOMAIN_NAME }}/api/cursos)
           
           ---
-          *Release criado automaticamente pelo GitHub Actions*
+          *Release criado via deploy manual no GitHub Actions*
         draft: false
         prerelease: false
-
-    - name: Comentar no commit (se manual)
-      if: success() && github.event_name == 'workflow_dispatch'
-      uses: actions/github-script@v7
-      with:
-        script: |
-          github.rest.repos.createCommitComment({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            commit_sha: context.sha,
-            body: `🚀 **Deploy Manual Realizado**
-            
-            **📦 Versão:** ${{ steps.vars.outputs.version }}
-            **🌍 Ambiente:** ${{ steps.vars.outputs.environment }}
-            **👤 Executado por:** @${{ github.actor }}
-            **📅 Data:** ${{ steps.vars.outputs.timestamp }}
-            
-            **🔗 Links:**
-            - 🌐 [Site ao vivo](https://${{ secrets.DOMAIN_NAME }})
-            - 🔧 [API](https://${{ secrets.DOMAIN_NAME }}/api/cursos)
-            
-            ✅ Deploy concluído com sucesso!`
-          })
+        token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Notificar status
       if: always()
       run: |
+        echo "📊 Resumo do Deploy Manual:"
+        echo "=========================="
+        
         if [ "${{ job.status }}" = "success" ]; then
-          echo "✅ Deploy realizado com sucesso!"
-          echo "🌐 Site: https://${{ secrets.DOMAIN_NAME }}"
-          echo "📦 Versão: ${{ steps.vars.outputs.version }}"
+          echo "✅ Deploy MANUAL realizado com sucesso!"
+          echo ""
+          echo "📦 Detalhes:"
+          echo "  - Versão: ${{ steps.vars.outputs.version }}"
+          echo "  - Ambiente: ${{ steps.vars.outputs.environment }}"
+          echo "  - Data: ${{ steps.vars.outputs.timestamp }}"
+          echo "  - Executado por: ${{ github.actor }}"
+          echo ""
+          echo "🔗 Links:"
+          echo "  - 🌐 Site: https://${{ secrets.DOMAIN_NAME }}"
+          echo "  - 🔧 API: https://${{ secrets.DOMAIN_NAME }}/api/cursos"
+          
+          if [ "${{ github.event.inputs.create_release }}" = "true" ]; then
+            echo "  - 📦 Release: https://github.com/${{ github.repository }}/releases/tag/${{ steps.vars.outputs.version }}"
+          fi
+          
+          echo ""
+          echo "🎯 Deploy realizado manualmente conforme solicitado!"
         else
-          echo "❌ Deploy falhou!"
-          echo "🔍 Verifique os logs acima para detalhes"
+          echo "❌ Deploy MANUAL falhou!"
+          echo ""
+          echo "🔍 Troubleshooting:"
+          echo "  1. Verifique os logs acima para detalhes"
+          echo "  2. Confirme se todos os secrets estão configurados"
+          echo "  3. Execute com 'Debug SSH' = true para diagnóstico"
           echo ""
           echo "💡 Dicas para resolver problemas SSH:"
-          echo "  1. Verifique se VPS_HOST, VPS_USERNAME estão corretos"
-          echo "  2. Configure VPS_SSH_KEY (preferível) ou VPS_PASSWORD"
-          echo "  3. Execute com 'Debug SSH' = true para mais informações"
+          echo "  - Verifique VPS_HOST, VPS_USERNAME"
+          echo "  - Configure VPS_SSH_KEY ou VPS_PASSWORD"
+          echo "  - Consulte: .github/SSH_TROUBLESHOOTING.md"
         fi 

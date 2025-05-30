@@ -28,6 +28,11 @@ on:
         default: true
         type: boolean
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
 jobs:
   create-release:
     runs-on: ubuntu-latest
@@ -106,54 +111,29 @@ jobs:
         git push origin ${{ steps.validate.outputs.version }}
         
     - name: Criar Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: ncipollo/release-action@v1
       with:
-        tag_name: ${{ steps.validate.outputs.version }}
-        release_name: 'Release ${{ steps.validate.outputs.version }}'
+        tag: ${{ steps.validate.outputs.version }}
+        name: 'Release ${{ steps.validate.outputs.version }}'
         body: |
-          ${{ steps.changelog.outputs.changelog || format('🚀 **Release Manual - {0}**
+          ${{ steps.changelog.outputs.changelog }}
+          
+          🚀 **Release Manual - ${{ steps.validate.outputs.version }}**
 
-          **📅 Data:** {1}
-          **🔧 Commit:** {2}
-          **👤 Criado por:** @{3}
-          **📦 Tipo:** {4}
+          **📅 Data:** ${{ github.event.repository.updated_at }}
+          **🔧 Commit:** ${{ github.sha }}
+          **👤 Criado por:** @${{ github.actor }}
+          **📦 Tipo:** ${{ github.event.inputs.release_type }}
 
           **🔗 Links:**
-          - 🌐 [Site ao vivo](https://{5})
-          - 📚 [Documentação](https://github.com/{6}#readme)
+          - 🌐 [Site ao vivo](https://${{ secrets.DOMAIN_NAME || 'seu-dominio.com' }})
+          - 📚 [Documentação](https://github.com/${{ github.repository }}#readme)
 
           ---
-          *Release criado manualmente via GitHub Actions*', 
-          steps.validate.outputs.version,
-          github.event.repository.updated_at,
-          github.sha,
-          github.actor,
-          github.event.inputs.release_type,
-          secrets.DOMAIN_NAME,
-          github.repository) }}
+          *Release criado manualmente via GitHub Actions*
         draft: false
         prerelease: ${{ github.event.inputs.prerelease }}
-        
-    - name: Comentar sucesso
-      uses: actions/github-script@v7
-      with:
-        script: |
-          github.rest.repos.createCommitComment({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            commit_sha: context.sha,
-            body: `🎉 **Release ${{ steps.validate.outputs.version }} criado com sucesso!**
-            
-            **📦 Tipo:** ${{ github.event.inputs.release_type }}
-            **👤 Criado por:** @${{ github.actor }}
-            **🔗 Link:** [Ver Release](https://github.com/${{ github.repository }}/releases/tag/${{ steps.validate.outputs.version }})
-            
-            ${${{ github.event.inputs.prerelease }} ? '⚠️ **Pre-release** - não recomendado para produção' : '✅ **Release estável** - pronto para produção'}
-            
-            Para fazer deploy desta versão, execute o workflow de deploy manualmente.`
-          })
+        token: ${{ secrets.GITHUB_TOKEN }}
           
     - name: Resumo final
       run: |
@@ -167,4 +147,8 @@ jobs:
         echo ""
         echo "🔗 Links:"
         echo "  - Release: https://github.com/${{ github.repository }}/releases/tag/${{ steps.validate.outputs.version }}"
-        echo "  - Comparação: https://github.com/${{ github.repository }}/compare/$(git describe --tags --abbrev=0 ${{ steps.validate.outputs.version }}^)...${{ steps.validate.outputs.version }}" 
+        echo "  - Comparação: https://github.com/${{ github.repository }}/compare/$(git describe --tags --abbrev=0 ${{ steps.validate.outputs.version }}^)...${{ steps.validate.outputs.version }}"
+        echo ""
+        echo "💡 Próximos passos:"
+        echo "  - Para fazer deploy desta versão, execute o workflow 'Deploy para VPS'"
+        echo "  - Configure a tag de versão como: ${{ steps.validate.outputs.version }}" 

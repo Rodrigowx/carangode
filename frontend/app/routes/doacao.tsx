@@ -1,6 +1,6 @@
 export default function Doacao() {
   return (
-    <main className="pt-20 pb-8 px-4 max-w-2xl mx-auto text-center">
+    <main className="pt-24 pb-8 px-4 max-w-2xl mx-auto text-center">
       <h1 className="text-3xl font-bold text-blue-800 dark:text-blue-300 mb-4">Ajude a Transformar Vidas</h1>
       <p className="mb-6 text-lg text-gray-700 dark:text-gray-200">
         Sua doação faz a diferença! Com ela, ampliamos nossos projetos e impactamos mais pessoas. Doe qualquer valor e seja parte dessa transformação.

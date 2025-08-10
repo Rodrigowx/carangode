@@ -101,7 +101,7 @@ export function ErrorBoundary({ error }: { error: any }) {
   }
 
   return (
-    <main className="pt-16 p-4 container mx-auto">
+    <main className="pt-24 p-4 container mx-auto">
       <h1>{message}</h1>
       <p>{details}</p>
       {stack && (

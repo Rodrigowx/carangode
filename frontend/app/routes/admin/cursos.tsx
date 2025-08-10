@@ -312,7 +312,7 @@ export default function AdminCursos() {
 
   return (
     <ProtectedRoute>
-      <main className="pt-20 pb-8 px-4 max-w-5xl mx-auto">
+      <main className="pt-24 pb-8 px-4 max-w-5xl mx-auto">
         {loadingGlobal && <LoadingSpinner />}
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         

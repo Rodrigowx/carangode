@@ -59,7 +59,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (isValidating) {
     return (
-      <div className="pt-20 pb-8 px-4 max-w-5xl mx-auto">
+      <div className="pt-24 pb-8 px-4 max-w-5xl mx-auto">
         <div className="flex items-center justify-center py-12">
           <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
           <span className="ml-2 text-gray-600 dark:text-gray-400">Validando acesso...</span>

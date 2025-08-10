@@ -9,7 +9,7 @@ export default function Contato() {
   };
 
   return (
-    <main className="pt-20 pb-8 px-4 max-w-lg mx-auto">
+    <main className="pt-24 pb-8 px-4 max-w-lg mx-auto">
       <h1 className="text-3xl font-bold text-blue-800 dark:text-blue-300 mb-4">Fale Conosco</h1>
       <form onSubmit={handleSubmit(onSubmit)} className="bg-white dark:bg-gray-900 rounded-xl shadow p-6 flex flex-col gap-4 border border-gray-100 dark:border-gray-800">
         <div>

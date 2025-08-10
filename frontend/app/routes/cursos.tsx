@@ -40,14 +40,14 @@ export default function Cursos() {
 
   if (loading) {
     return (
-      <main className="pt-20 pb-8 px-4 max-w-5xl mx-auto">
+      <main className="pt-24 pb-8 px-4 max-w-5xl mx-auto">
         <LoadingSpinner />
       </main>
     );
   }
 
   return (
-    <main className="pt-20 pb-8 px-4 max-w-5xl mx-auto bg-gradient-to-br from-orange-50 via-amber-50 to-teal-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 min-h-screen">
+    <main className="pt-24 pb-8 px-4 max-w-5xl mx-auto bg-gradient-to-br from-orange-50 via-amber-50 to-teal-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 min-h-screen">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       
       <div className="text-center mb-8 md:mb-12">

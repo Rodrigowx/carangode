@@ -64,7 +64,7 @@ export default function Login() {
   };
 
   return (
-    <main className="pt-20 pb-8 px-4 max-w-sm mx-auto">
+    <main className="pt-24 pb-8 px-4 max-w-sm mx-auto">
       {loading && <LoadingSpinner />}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       

@@ -90,7 +90,7 @@ export default function CursoDetalhe() {
 
   if (loading) {
     return (
-      <main className="pt-20 pb-8 px-4 max-w-2xl mx-auto">
+      <main className="pt-24 pb-8 px-4 max-w-2xl mx-auto">
         <LoadingSpinner />
       </main>
     );
@@ -98,7 +98,7 @@ export default function CursoDetalhe() {
 
   if (erro) {
     return (
-      <main className="pt-20 pb-8 px-4 max-w-2xl mx-auto">
+      <main className="pt-24 pb-8 px-4 max-w-2xl mx-auto">
         <div className="text-center py-12">
           <p className="text-red-600 dark:text-red-400 text-lg mb-4">{erro}</p>
           <button 
@@ -114,14 +114,14 @@ export default function CursoDetalhe() {
 
   if (!curso) {
     return (
-      <main className="pt-20 pb-8 px-4 max-w-2xl mx-auto">
+      <main className="pt-24 pb-8 px-4 max-w-2xl mx-auto">
         <p className="text-center text-gray-600 dark:text-gray-400">Curso não encontrado.</p>
       </main>
     );
   }
 
   return (
-    <main className="pt-20 pb-8 px-4 max-w-2xl mx-auto">
+    <main className="pt-24 pb-8 px-4 max-w-2xl mx-auto">
       {loadingInscricao && <LoadingSpinner />}
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       
